@@ -31,12 +31,15 @@ library(lattice) ### lattice_0.20-29
 library(latticeExtra) ### latticeExtra_0.6-26
 library(colorspace) ### colorspace_1.2-4
 library(grid) ### (R base package: 3.1.0 or higher)
+library(gridBase)
 library(rgdal) ### rgdal_0.8-16
 library(colortools) ### colortools_0.1.5
 
 #################################################
 # some helpful functions
 #################################################
+
+opar = par()
 
 colourScale <- function(x,colourSet= c("green","yellow","red"),nBreaks=200,fixedLims=NULL){
                 Colors <- colorRampPalette(colourSet)(nBreaks)
@@ -80,60 +83,71 @@ makeScaleWithHist <- function(values,colourSet,scalenum=100,nbreaks=70,fixedLims
     par(mar=opar$mar,mgp=opar$mgp)
 }
 
+My.add.alpha <- function(col, alpha=1, valueChange=1,saturationChange=1){
+  if(missing(col))
+    stop("Please provide a vector of colours.")
+  apply(sapply(col, col2rgb), 2, 
+                     function(x) {
+                       Hsv=rgb2hsv(x)
+                       hsv(Hsv[1],Hsv[2]*saturationChange,Hsv[3]*valueChange,alpha=alpha)
+                     })
+}
+
 
 #################################################
 # download country maps from here: http://www.gadm.org/country
 #################################################
 
-
 setwd("~/Documents/ClareDPhil/DPhil/Spain/mapping")
 
-load('~/Downloads/CHN_adm3.Rdata',verbose=T)
+NZMap <- readRDS('~/Downloads/gadm36_NZL_1_sp.rds')
 
-chinaMap <- gadm
-
-# Combine some polygons using gUnaryunion
-
-chinaMapName1 <- gUnaryUnion(chinaMap,chinaMap$NAME_1)
+# Combine some polygons using gUnaryunion (takes a few seconds)
+NZMapName1 <- gUnaryUnion(NZMap,NZMap$NAME_1)
 
 # This creates a SpatialPolygons object, so to map it you need to create a SpatialPolygonsDataFrame
-npolygons <- length(chinaMapName1@polygons)
+npolygons <- length(NZMapName1@polygons)
 Data <- as.data.frame(rep(1,npolygons))
-  rownames(Data) <- sapply(chinaMapName1@polygons,FUN=slot,name="ID")
+  rownames(Data) <- sapply(NZMapName1@polygons,FUN=slot,name="ID")
   colnames(Data) <- "dummy"
 
-chinaMapName1df <- SpatialPolygonsDataFrame(chinaMapName1,data=Data,match.ID=TRUE)
+NZMapName1df <- SpatialPolygonsDataFrame(NZMapName1,data=Data,match.ID=TRUE)
 
-# Plot the map simply
-
-spplot(chinaMapName1df,zcol="dummy",regioncol="gray",colorkey=F)
-
-# Colour polygons by some measure <measure> which is recorded as a column in chinaMapName1df@data
-chinaMapName1df@data$measure <- runif(npolygons)
-spplot(chinaMapName1df[1:5,],zcol="measure",regioncol=c("red","blue"),colorkey=T)
-
+# Plot the map simply (it takes a while to plot, so don't run this if you don't have time)
+# spplot(NZMapName1df,zcol="dummy",regioncol="gray",colorkey=F)
                       
 # It takes a while to plot, so do we need all of that resolution? (7,000 points describe one polygon!)
       # Use gSimplify
+NZMapName1simple <- gSimplify(NZMapName1df,tol=0.1,topologyPreserve=T)
+NZMapName1simpledf  <- SpatialPolygonsDataFrame(NZMapName1simple,data=NZMapName1df@data,match.ID=T)
                       
-chinaMapName1simple <- gSimplify(chinaMapName1df,tol=0.1,topologyPreserve=T)
-chinaMapName1simpledf  <- SpatialPolygonsDataFrame(chinaMapName1simple,data=chinaMapName1df@data,match.ID=T)
+# Colour polygons by some measure <measure> which is recorded as a column in NZMapName1df@data
+NZMapName1simpledf@data$measure <- runif(npolygons)
+                      
 colourPal <- colorRampPalette(colors=c("red","blue"))(50)     
                       # look at colours using pizza!!!
                       pizza(colourPal)
-                      
-chinaMapRegions <- spplot(chinaMapName1simpledf,zcol="measure",col.regions=colourPal,colorkey=T,col="gray")
+
+NZMapRegions <- spplot(NZMapName1simpledf,zcol="measure",col.regions=colourPal,colorkey=T,col="gray")
+NZMapRegions
+
+# Exclude some of the very distant islands
+NotIslandIndex = which(!rownames(NZMapName1simpledf@data)%in%c("Southern Islands","Northern Islands","Chatham Islands"))
+NZMapRegions <- spplot(NZMapName1simpledf[NotIslandIndex,],zcol="measure",col.regions=colourPal,colorkey=T,col="gray")
+NZMapRegions
+
 
 # What about the rest of the world?
 
-     # What are the countries called ?
-country_names <- getData('ISO3')
                       
 ### Download country data (only do from ****** to ****** once)
 
 #******                     
 system('mkdir ./world_map_files')                      
 getData('countries',path='./world_map_files')
+#******
+                      
+load('./world_map_files/countries.Rdata')            
 countries$dummy <- 0
 proj4string(countries) <- CRS(proj4string(countries))
 
@@ -142,47 +156,49 @@ for (column in colnames(countries@data)){
   print(column)
   Encoding(levels(countries@data[,column])) <- "latin1"
 }
-                      
-#******
-                      
-load('./world_map_files/countries.Rdata')                      
 
 # Just get polygons for Asia
-Asia <- countries[countries@data$CONTINENT=="Asia",]                      
-spplot(Asia,zcol="dummy")
+Oceania <- countries[countries@data$CONTINENT=="Oceania",]                      
+spplot(Oceania,zcol="dummy")
 
-# This is a bit too big, so get just countries around China
+# This is a bit too big, so get just countries around NZ
                       
-subbox <- countries[(countries@data$COUNTRY=="China")&(countries@data$CONTINENT=="Asia"),]@bbox
+subbox <- countries[(countries@data$COUNTRY=="New Zealand")&(countries@data$CONTINENT=="Oceania"),]@bbox
 
 subboxPolygon <- SpatialPolygons(list(Polygons(list(Polygon(rbind(subbox[,1],c(subbox[1,1],subbox[2,2]),subbox[,2],c(subbox[1,2],subbox[2,1]),subbox[,1]))),"subbox")),
                                  proj4string=CRS(proj4string(countries)))
 
 oversub <- which(!is.na(over(countries,subboxPolygon)))
-countriesOverChina <- countries[oversub,]
+countriesOverNZ <- countries[oversub,]
 
-countriesOverChinasimple <- gSimplify(countriesOverChina,tol=0.1,topologyPreserve=T)
-countriesOverChinasimpledf  <- SpatialPolygonsDataFrame(countriesOverChinasimple,data=countriesOverChina@data,match.ID=T)
+countriesOverNZsimple <- gSimplify(countriesOverNZ,tol=0.1,topologyPreserve=T)
+countriesOverNZsimpledf  <- SpatialPolygonsDataFrame(countriesOverNZsimple,data=countriesOverNZ@data,match.ID=T)
 
-chinaMapCountry <- spplot(countriesOverChinasimpledf,zcol="dummy",xlim=c(subbox[1,1],subbox[1,2]),ylim=c(subbox[2,1],subbox[2,2]),
+NZMapCountry <- spplot(countriesOverNZsimpledf,zcol="dummy",xlim=c(subbox[1,1],subbox[1,2]),ylim=c(subbox[2,1],subbox[2,2]),
                         col.regions="transparent",col="black",
                         lwd=1.2,colorkey=F)
           # col = colour of borders
           # col.regions = colour inside polygons
+NZMapCountry
+# Islands annoying:
+subbox = bbox(NZMapName1simpledf[NotIslandIndex,])
+NZMapCountry <- spplot(countriesOverNZsimpledf,zcol="dummy",xlim=c(subbox[1,1],subbox[1,2]),ylim=c(subbox[2,1],subbox[2,2]),
+                        col.regions="transparent",col="black",
+                        lwd=1.2,colorkey=F)
+NZMapCountry
 
+# Put map of NZ regions on top of context map (not really necessary)
+colouredPlot <- NZMapRegions + NZMapCountry
 
-# Put map of China regions on top of context map
-colouredPlot <- chinaMapRegions + chinaMapCountry
-
-png('ChinaColouredRandom.png',height=2000,width=2000,res=150)
+png('NZColouredRandom.png',height=2000,width=2000,res=150)
   print(colouredPlot)
 dev.off()
 
 # A basic plot for putting points on (no colour key)
 
-BasicPlot <- chinaMapCountry + update(chinaMapRegions,col.regions="lightgray")
+BasicPlot <- update(NZMapRegions,col.regions="lightgray")
 
-png('ChinaBasicPlot.png',height=2000,width=2000,res=150)
+png('NZBasicPlot.png',height=2000,width=2000,res=150)
   print(BasicPlot)
 dev.off()
 
@@ -195,22 +211,23 @@ coords <- cbind(X,Y)
 
 # Create SpatialPoints object
 
-randPoints <- SpatialPoints(coords,proj4string=CRS(proj4string(chinaMapName1simpledf)))
-someNumVector <- coords[,1]
+randPoints <- SpatialPoints(coords,proj4string=CRS(proj4string(NZMapName1simpledf)))
 
+# Colour by location in x co-ordinate
+someNumVector <- coords[,1]
 cols <- colourScale(someNumVector,colourSet=c("red","blue"),nBreaks=50)
 
-mappoints <- list("sp.points",randPoints,cex=2,pch=16,col=cols)
+mappoints <- list("sp.points",randPoints,cex=0.5,pch=16,col=cols)
 #maplines <- list("sp.lines",...)
 
-myPlot <- chinaMapCountry + update(chinaMapRegions,col.regions="lightgray",sp.layout=list(mappoints))
-
+myPlot <- update(NZMapRegions,col.regions="lightgray",sp.layout=list(mappoints))
+myPlot
 
 # Plot scale with map
 mapViewport = viewport(0.5,1,just=c("centre","top"))
 scaleViewport = viewport(0.05,0.03,height=0.05,width=unit(0.9,"npc"),just=c("left","bottom"))
   
-png('ChinapPointsPlot.png',height=2000,width=2000,res=150)
+png('NZpPointsPlot.png',height=2000,width=2000,res=150)
 plot.new()
 grid.newpage()
     pushViewport(mapViewport)
@@ -224,30 +241,25 @@ dev.off()
 
 #### get some coordinates and jitter
 
-# get coordinates for towns (one for each polygon)
-centres <- t(sapply(chinaMap@polygons,FUN=slot,name="labpt"))
+# get coordinates for centres of polygons (one for each polygon)
+centres <- t(sapply(NZMap@polygons,FUN=slot,name="labpt"))
 
-# e.g Shanghai
-shanghaiCoord <- centres[grep("Shanghai",chinaMap@data$NAME_3),]
+# e.g Wellington
+wellingtonCoord <- centres[grep("Wellington",NZMap@data$NAME_1),]
 
-# sample points within Shanhai
-randShangPoints <- spsample(chinaMap[grep("Shanghai",chinaMap@data$NAME_3),], n=100, type='random')
-
-# plot on map
-mappoints <- list("sp.points",randShangPoints,cex=1,pch=16,col=cols)
-myPlot <- chinaMapCountry + update(chinaMapRegions,col.regions="lightgray",sp.layout=list(mappoints))
-
-png('ChinaShanghaiPointsPlot.png',height=2000,width=2000,res=150)
-  print(myPlot)
-dev.off()
-
-# sample points within some province
-randGanPoints <- spsample(chinaMap[grep("Gansu",chinaMap@data$NAME_1),], n=100, type='random')
+# sample points within Wellington region
+randWellingtonPoints <- spsample(NZMap[grep("Wellington",NZMap@data$NAME_1),], n=100, type='random')
 
 # plot on map
-mappoints <- list("sp.points",randGanPoints,cex=1,pch=16,col=cols)
-myPlot <- chinaMapCountry + update(chinaMapRegions,col.regions="lightgray",sp.layout=list(mappoints))
+mappoints <- list("sp.points",randWellingtonPoints,cex=0.8,pch=18,col=cols)
+myPlot <- update(NZMapRegions,col.regions="lightgray",sp.layout=list(mappoints))
 
-png('ChinaGanPointsPlot.png',height=2000,width=2000,res=150)
-  print(myPlot)
+# Plot on wellington region from high resolution map
+myPlotWellyOnly = spplot(NZMapName1df[grep("Wellington",rownames(NZMapName1df@data)),],colorkey=FALSE,
+                         zcol="dummy",col.regions="lightgray",sp.layout=list(mappoints),main="Wellington region")
+myPlotWellyOnly
+
+png('NZWellingtonPointsPlot.png',height=2000,width=2000,res=150)
+  print(myPlotWellyOnly)
 dev.off()
+
