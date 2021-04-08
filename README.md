@@ -9,7 +9,7 @@ DISCLAIMER: Scripts may contain hard-coded directories, or will try to load file
 Bycroft, C., Fernandez-Rozadilla, C., Ruiz-Ponte, C. et al. Patterns of genetic differentiation and the footprints of historical migrations in the Iberian Peninsula. Nat Commun 10, 551 (2019). https://doi.org/10.1038/s41467-018-08272-w
 
 
-## Notes mapping code 
+## How to make pretty maps 
 The following outlines how to build similar maps to Figures 1 and 4 in the [publication](https://doi.org/10.1038/s41467-018-08272-w)) - for any arbitrary map, and any set of sampled point locations.
 
 ### Function library
