@@ -16,7 +16,7 @@ The following outlines how to build similar maps to Figures 1 and 4 in the [publ
 
 I have a large function library, [Other/ClaresFunctions.R](https://github.com/cgbycroft/spain_popgen/blob/master/Other/ClaresFunctions.R), which is basically my PhD workhorse, developed over 4 years ;D.  If other scripts don't run, it's likely because they're calling a function from ClaresFunctions.R, so if you can get it so you can source the library script it might make other things easier, as you won't have to dig around the large library so much.
 
-You won't be able to directly run source("Other/ClaresFunctions.R") as it is, because it reads in some objects from files on my computer.  However, I think most of the lines you'll have to remove that load in data are at the beginning on line 85, but keep lines 93-96 and 99 as these load in maps that I've included in the repository, and which are used further down in the script.
+You won't be able to directly run `source("Other/ClaresFunctions.R")` as it is, because it reads in some objects from local files you won't have access to.  However, I think most of the lines you'll have to remove that load in data are at the beginning on line 85, but keep lines 93-96 and 99 as these load in maps that I've included in the repository, and which are used further down in the script.
 
 
 ### Mapping fineSTRUCTURE clusters
